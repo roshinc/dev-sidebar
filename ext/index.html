@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StackSync Sidebar</title>
+    <link rel="stylesheet" href="css/index.css" />
+  </head>
+  <body>
+    <div class="App">
+      <header class="header">
+        <h1>StackSync</h1>
+        <div class="status" id="status">Analyzing page...</div>
+      </header>
+
+      <section class="content">
+        <div class="current-context" id="currentContext">
+          <h3>Current Context</h3>
+          <div class="context-info">
+            <span class="platform" id="currentPlatform">Unknown</span>
+            <span class="project-name" id="projectName"
+              >No project detected</span
+            >
+          </div>
+        </div>
+
+        <div class="correlations" id="correlations">
+          <h3>Related Resources</h3>
+          <div class="correlation-list" id="correlationList">
+            <div class="no-correlations">No correlations found</div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <button class="settings-btn" id="settingsBtn">⚙️ Settings</button>
+        </div>
+      </section>
+
+      <div class="settings-panel" id="settingsPanel">
+        <h3>Configuration</h3>
+        <div class="setting-group">
+          <label for="elasticUrl">Elastic URL:</label>
+          <input
+            type="text"
+            id="elasticUrl"
+            placeholder="https://your-elastic.com"
+          />
+        </div>
+        <div class="setting-group">
+          <label for="gitlabUrl">GitLab URL:</label>
+          <input
+            type="text"
+            id="gitlabUrl"
+            placeholder="https://gitlab.com/your-group"
+          />
+        </div>
+        <div class="setting-group">
+          <label for="jenkinsUrl">Jenkins URL:</label>
+          <input
+            type="text"
+            id="jenkinsUrl"
+            placeholder="https://your-jenkins.com"
+          />
+        </div>
+        <div class="setting-group">
+          <label for="namingPattern">Naming Pattern:</label>
+          <input
+            type="text"
+            id="namingPattern"
+            placeholder="e.g., my-app-{env}"
+          />
+          <small>Use {env} for environment placeholders</small>
+        </div>
+        <div class="setting-actions">
+          <button id="saveSettings">Save</button>
+          <button id="cancelSettings">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/sidebar.js"></script>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "StackSync Sidebar",
+  "description": "Correlate Elastic logs, GitLab projects and Jenkins jobs",
+  "version": "1.0.0",
+  "icons": {
+    "128": "icons/icon.png"
+  },
+  "action": {
+    "default_icon": {
+      "32": "icons/icon.png"
+    },
+    "default_title": "StackSync"
+  },
+  "background": {
+    "service_worker": "js/background.js"
+  },
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "tabs",
+    "scripting",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://*.elastic.company.com/*",
+    "https://gitlab.company.com/*",
+    "https://jenkins.company.com/*",
+    "https://jenkins.company.com/api/*",
+    "https://gitlab.company.com/api/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.elastic.company.com/*",
+        "https://gitlab.company.com/*",
+        "https://jenkins.company.com/*"
+      ],
+      "js": [
+        "js/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
