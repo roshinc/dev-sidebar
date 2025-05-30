@@ -160,12 +160,68 @@ class StackSyncSidebar {
 
   detectPlatform(url) {
     const hostname = url.hostname.toLowerCase();
+    const fullUrl = url.href.toLowerCase();
 
+    // Check against configured URLs first
+    if (this.settings.elasticUrl) {
+      try {
+        const elasticHost = new URL(
+          this.settings.elasticUrl
+        ).hostname.toLowerCase();
+        if (hostname === elasticHost || hostname.includes(elasticHost)) {
+          return "elastic";
+        }
+      } catch (error) {
+        // Invalid elastic URL in settings
+      }
+    }
+
+    if (this.settings.jenkinsUrl) {
+      try {
+        const jenkinsHost = new URL(
+          this.settings.jenkinsUrl
+        ).hostname.toLowerCase();
+        if (hostname === jenkinsHost || hostname.includes(jenkinsHost)) {
+          return "jenkins";
+        }
+      } catch (error) {
+        // Invalid jenkins URL in settings
+      }
+    }
+
+    // Check GitLab by URL pattern since it might be a project URL
+    if (this.settings.gitlabUrl) {
+      try {
+        const gitlabHost = new URL(
+          this.settings.gitlabUrl
+        ).hostname.toLowerCase();
+        if (hostname === gitlabHost || hostname.includes(gitlabHost)) {
+          return "gitlab";
+        }
+      } catch (error) {
+        // Invalid gitlab URL in settings
+      }
+    }
+
+    // Fallback to generic detection for common platforms
     if (hostname.includes("elastic") || hostname.includes("kibana")) {
       return "elastic";
     } else if (hostname.includes("gitlab")) {
       return "gitlab";
     } else if (hostname.includes("jenkins")) {
+      return "jenkins";
+    }
+
+    // Additional platform detection patterns
+    if (fullUrl.includes("/app/discover") || fullUrl.includes("/app/kibana")) {
+      return "elastic";
+    } else if (
+      fullUrl.includes("/-/") ||
+      fullUrl.includes("/merge_requests") ||
+      fullUrl.includes("/issues")
+    ) {
+      return "gitlab";
+    } else if (fullUrl.includes("/job/") || fullUrl.includes("/build/")) {
       return "jenkins";
     }
 
