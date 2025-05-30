@@ -377,7 +377,7 @@ class StackSyncSidebar {
                   const pipelineScript =
                     xmlDoc.querySelector("script")?.textContent ?? "";
                   if (pipelineScript) {
-                    const appNameMatch = scriptText.match(
+                    const appNameMatch = pipelineScript.match(
                       /def\s+_appName\s*=\s*['"]([^'"]+)['"]/
                     );
                     if (appNameMatch) {
@@ -651,6 +651,11 @@ class StackSyncSidebar {
       console.error("Error fetching Elastic URL:", error);
       return null;
     }
+  }
+
+  buildJenkinsUrlFromJobId(jobId) {
+    const baseUrl = this.settings.jenkinsUrl.replace(/\/$/, "");
+    return `${baseUrl}/job/${jobId}/`;
   }
 
   convertGitUrlToWebUrl(gitUrl) {
