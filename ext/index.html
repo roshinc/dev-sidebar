@@ -71,23 +71,23 @@
         </div>
 
         <div class="setting-group">
-          <label for="elasticUrl">Elastic URL (Fallback):</label>
+          <label for="elasticUrl">Elastic/Kibana URL:</label>
           <input
             type="text"
             id="elasticUrl"
-            placeholder="https://your-elastic.com"
+            placeholder="https://myelastic.dev:9243"
           />
-          <small>Used when elastic search service is unavailable</small>
+          <small>Used for platform detection and fallback links</small>
         </div>
 
         <div class="setting-group">
-          <label for="gitlabUrl">GitLab URL (Fallback):</label>
+          <label for="gitlabUrl">GitLab URL:</label>
           <input
             type="text"
             id="gitlabUrl"
-            placeholder="https://gitlab.com/your-group"
+            placeholder="https://your-gitlab.com"
           />
-          <small>Used when git URL conversion fails</small>
+          <small>Used for platform detection and fallback links</small>
         </div>
 
         <div class="setting-group">
@@ -97,6 +97,7 @@
             id="jenkinsUrl"
             placeholder="https://your-jenkins.com"
           />
+          <small>Used for platform detection and job URLs</small>
         </div>
 
         <div class="setting-group">
