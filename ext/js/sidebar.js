@@ -174,7 +174,12 @@ class StackSyncSidebar {
 
   async extractProjectName(tab, platform) {
     try {
-      // Execute content script to extract project information
+      // Special handling for Jenkins to fetch config.xml
+      if (platform === "jenkins") {
+        return await this.extractJenkinsProjectName(tab);
+      }
+
+      // Execute content script to extract project information for other platforms
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         function: this.getContentScriptFunction(platform),
@@ -293,8 +298,47 @@ class StackSyncSidebar {
         };
 
       case "jenkins":
-        return () => {
-          // Extract job name from Jenkins
+        return async () => {
+          // First try to get app name from config.xml
+          try {
+            const currentUrl = window.location.href;
+            let configUrl;
+
+            // Build config.xml URL from current Jenkins page URL
+            if (currentUrl.includes("/job/")) {
+              // Extract job name and build config URL
+              const jobMatch = currentUrl.match(/\/job\/([^\/]+)/);
+              if (jobMatch) {
+                const jobName = jobMatch[1];
+                const baseUrl = currentUrl.split("/job/")[0];
+                configUrl = `${baseUrl}/job/${jobName}/config.xml`;
+
+                // Fetch config.xml
+                const response = await fetch(configUrl);
+                if (response.ok) {
+                  const xmlText = await response.text();
+
+                  // Extract app name from the pipeline script
+                  const appNameMatch = xmlText.match(
+                    /def\s+_appName\s*=\s*['"](.*?)['"]/
+                  );
+                  if (appNameMatch) {
+                    return appNameMatch[1];
+                  }
+
+                  // Alternative pattern: appName=_appName or appName='name'
+                  const altMatch = xmlText.match(/appName\s*=\s*['"](.*?)['"]/);
+                  if (altMatch) {
+                    return altMatch[1];
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.log("Could not fetch Jenkins config.xml:", error);
+          }
+
+          // Fallback: Extract job name from DOM
           const jobName = document.querySelector("#main-panel h1");
           if (jobName) {
             const text = jobName.textContent.trim();
@@ -302,7 +346,7 @@ class StackSyncSidebar {
             return text.replace(/^(Project|Job)\s+/, "");
           }
 
-          // Try breadcrumb
+          // Try breadcrumb as final fallback
           const breadcrumb = document.querySelector("#breadcrumbBar");
           if (breadcrumb) {
             const links = breadcrumb.querySelectorAll("a");
@@ -374,10 +418,20 @@ class StackSyncSidebar {
           break;
 
         case "jenkins":
-          // Jenkins URLs: /job/project-name
-          const jobIndex = pathParts.indexOf("job");
-          if (jobIndex >= 0 && pathParts.length > jobIndex + 1) {
-            return pathParts[jobIndex + 1];
+          // For Jenkins, try to extract real app name from config.xml
+          try {
+            const jobMatch = urlObj.pathname.match(/\/job\/([^\/]+)/);
+            if (jobMatch) {
+              const jobName = jobMatch[1];
+              const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+              const configUrl = `${baseUrl}/job/${jobName}/config.xml`;
+
+              // We can't make async calls here, so we'll need to handle this in the content script
+              // For now, return the job name as fallback
+              return jobName;
+            }
+          } catch (error) {
+            console.error("Error extracting Jenkins job from URL:", error);
           }
           break;
       }
@@ -570,9 +624,41 @@ class StackSyncSidebar {
     }
   }
 
-  buildJenkinsUrlFromJobId(jobId) {
-    const baseUrl = this.settings.jenkinsUrl.replace(/\/$/, "");
-    return `${baseUrl}/job/${jobId}/`;
+  // Helper method to extract app name from Jenkins config.xml
+  async fetchJenkinsAppName(jobName, baseUrl) {
+    try {
+      const configUrl = `${baseUrl}/job/${jobName}/config.xml`;
+      const response = await fetch(configUrl);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const xmlText = await response.text();
+
+      // Extract app name from the pipeline script
+      let appNameMatch = xmlText.match(/def\s+_appName\s*=\s*['"](.*?)['"]/);
+      if (appNameMatch) {
+        return appNameMatch[1];
+      }
+
+      // Alternative pattern: appName='name' or appName="name"
+      appNameMatch = xmlText.match(/appName\s*=\s*['"](.*?)['"]/);
+      if (appNameMatch) {
+        return appNameMatch[1];
+      }
+
+      // Another pattern: appName=_appName where _appName is defined elsewhere
+      const varMatch = xmlText.match(/def\s+_appName\s*=\s*['"](.*?)['"]/);
+      if (varMatch) {
+        return varMatch[1];
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error fetching Jenkins config.xml:", error);
+      return null;
+    }
   }
 
   buildElasticUrl(projectName) {

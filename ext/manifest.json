@@ -29,11 +29,7 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "https://*.elastic.company.com/*",
-    "https://gitlab.company.com/*",
-    "https://jenkins.company.com/*",
-    "https://jenkins.company.com/api/*",
-    "https://gitlab.company.com/api/*"
+    "<all_urls>"
   ],
   "content_scripts": [
     {
