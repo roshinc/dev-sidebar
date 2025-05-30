@@ -174,11 +174,6 @@ class StackSyncSidebar {
 
   async extractProjectName(tab, platform) {
     try {
-      // Special handling for Jenkins to fetch config.xml
-      if (platform === "jenkins") {
-        return await this.extractJenkinsProjectName(tab);
-      }
-
       // Execute content script to extract project information for other platforms
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -318,18 +313,20 @@ class StackSyncSidebar {
                 if (response.ok) {
                   const xmlText = await response.text();
 
-                  // Extract app name from the pipeline script
-                  const appNameMatch = xmlText.match(
-                    /def\s+_appName\s*=\s*['"](.*?)['"]/
-                  );
-                  if (appNameMatch) {
-                    return appNameMatch[1];
-                  }
+                  // Parse XML
+                  const parser = new DOMParser();
+                  const xmlDoc = parser.parseFromString(xmlText, "text/xml");
 
-                  // Alternative pattern: appName=_appName or appName='name'
-                  const altMatch = xmlText.match(/appName\s*=\s*['"](.*?)['"]/);
-                  if (altMatch) {
-                    return altMatch[1];
+                  // Check if we have a pipeline script
+                  const pipelineScript =
+                    xmlDoc.querySelector("script")?.textContent ?? "";
+                  if (pipelineScript) {
+                    const appNameMatch = scriptText.match(
+                      /def\s+_appName\s*=\s*['"]([^'"]+)['"]/
+                    );
+                    if (appNameMatch) {
+                      return appNameMatch[1];
+                    }
                   }
                 }
               }
@@ -537,7 +534,7 @@ class StackSyncSidebar {
       correlations.push({
         platform: "config",
         title: "View App Configuration",
-        url: `${this.settings.configServiceUrl}/app-config/config/artifact/app/${this.currentProject}`,
+        url: `${this.settings.configServiceUrl}/${this.currentProject}`,
         icon: "C",
         metadata: {
           type: appConfig.type,
@@ -562,7 +559,7 @@ class StackSyncSidebar {
     }
 
     try {
-      const url = `${this.settings.configServiceUrl}/app-config/config/artifact/app/${appName}`;
+      const url = `${this.settings.configServiceUrl}/${appName}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -585,7 +582,7 @@ class StackSyncSidebar {
     }
 
     try {
-      const url = `${this.settings.elasticSearchServiceUrl}/elastic-search/api/elastic-search/get-elastic-url?appName=${appName}&appProduct=${appProduct}&envID=${this.settings.environment}`;
+      const url = `${this.settings.elasticSearchServiceUrl}?appName=${appName}&appProduct=${appProduct}&envID=${this.settings.environment}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -603,8 +600,8 @@ class StackSyncSidebar {
   convertGitUrlToWebUrl(gitUrl) {
     try {
       // Convert SSH git URL to HTTPS web URL
-      // From: git@nyssc.svc.ny.gov:DTF/FRAMEWORK/NIMBUS/nimbus-saml-service.git
-      // To: https://nyssc.svc.ny.gov/DTF/FRAMEWORK/NIMBUS/nimbus-saml-service
+      // From: git@gitlab.com:GROUP/SUBGROUP/nimbus-saml-service.git
+      // To: https://gitlab.com/GROUP/SUBGROUP/nimbus-saml-service
 
       if (gitUrl.startsWith("git@")) {
         const match = gitUrl.match(/git@([^:]+):(.+)\.git$/);
