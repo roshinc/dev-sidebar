@@ -324,7 +324,26 @@ class StackSyncSidebar {
 
       case "gitlab":
         return () => {
-          // Extract project name from GitLab
+          // Extract project name from GitLab URL structure
+          // Handle URLs like: /group/subgroup/project/-/issues
+          // or: /group/project/-/merge_requests
+          const url = window.location.href;
+          const pathname = window.location.pathname;
+
+          // Look for the /-/ separator which indicates GitLab-specific paths
+          const gitlabSeparatorIndex = pathname.indexOf("/-/");
+          if (gitlabSeparatorIndex > 0) {
+            // Get the path before /-/ and extract the last segment as project name
+            const projectPath = pathname.substring(0, gitlabSeparatorIndex);
+            const pathParts = projectPath
+              .split("/")
+              .filter((part) => part.length > 0);
+            if (pathParts.length > 0) {
+              return pathParts[pathParts.length - 1]; // Last segment is the project name
+            }
+          }
+
+          // Fallback: try breadcrumb navigation
           const breadcrumb = document.querySelector(".breadcrumbs-container");
           if (breadcrumb) {
             const links = breadcrumb.querySelectorAll("a");
@@ -337,12 +356,26 @@ class StackSyncSidebar {
             }
           }
 
-          // Try project header
+          // Try project header elements
           const projectName = document.querySelector(
             '[data-testid="project-name"]'
           );
           if (projectName) {
             return projectName.textContent.trim();
+          }
+
+          // Try project title in header
+          const projectTitle = document.querySelector(".project-title");
+          if (projectTitle) {
+            return projectTitle.textContent.trim();
+          }
+
+          // Final fallback: extract from URL path (assuming last segment before any query/hash)
+          const pathSegments = pathname
+            .split("/")
+            .filter((part) => part.length > 0);
+          if (pathSegments.length > 0) {
+            return pathSegments[pathSegments.length - 1];
           }
 
           return null;
@@ -464,9 +497,21 @@ class StackSyncSidebar {
           break;
 
         case "gitlab":
-          // GitLab URLs: /group/project or /user/project
-          if (pathParts.length >= 2) {
-            return pathParts[1];
+          // GitLab URLs with subgroups: /group/subgroup/project or /group/subgroup/project/-/issues
+          // Extract project name as the last segment before /-/ or end of path
+          const gitlabSeparatorIndex = pathParts.indexOf("-");
+          let projectPath;
+
+          if (gitlabSeparatorIndex > 0) {
+            // Get path before /-/ separator
+            projectPath = pathParts.slice(0, gitlabSeparatorIndex);
+          } else {
+            // No /-/ separator, use all path parts
+            projectPath = pathParts;
+          }
+
+          if (projectPath.length > 0) {
+            return projectPath[projectPath.length - 1]; // Last segment is project name
           }
           break;
 
