@@ -5,6 +5,9 @@ class StackSyncSidebar {
       gitlabUrl: "",
       jenkinsUrl: "",
       namingPattern: "",
+      configServiceUrl: "",
+      elasticSearchServiceUrl: "",
+      environment: "DEV",
     };
     this.currentProject = null;
     this.currentPlatform = null;
@@ -26,6 +29,9 @@ class StackSyncSidebar {
         "gitlabUrl",
         "jenkinsUrl",
         "namingPattern",
+        "configServiceUrl",
+        "elasticSearchServiceUrl",
+        "environment",
       ]);
 
       this.settings = {
@@ -33,6 +39,9 @@ class StackSyncSidebar {
         gitlabUrl: result.gitlabUrl || "",
         jenkinsUrl: result.jenkinsUrl || "",
         namingPattern: result.namingPattern || "",
+        configServiceUrl: result.configServiceUrl || "",
+        elasticSearchServiceUrl: result.elasticSearchServiceUrl || "",
+        environment: result.environment || "DEV",
       };
 
       this.populateSettingsForm();
@@ -85,6 +94,11 @@ class StackSyncSidebar {
     document.getElementById("jenkinsUrl").value = this.settings.jenkinsUrl;
     document.getElementById("namingPattern").value =
       this.settings.namingPattern;
+    document.getElementById("configServiceUrl").value =
+      this.settings.configServiceUrl;
+    document.getElementById("elasticSearchServiceUrl").value =
+      this.settings.elasticSearchServiceUrl;
+    document.getElementById("environment").value = this.settings.environment;
   }
 
   collectSettingsFromForm() {
@@ -97,6 +111,15 @@ class StackSyncSidebar {
       .value.trim();
     this.settings.namingPattern = document
       .getElementById("namingPattern")
+      .value.trim();
+    this.settings.configServiceUrl = document
+      .getElementById("configServiceUrl")
+      .value.trim();
+    this.settings.elasticSearchServiceUrl = document
+      .getElementById("elasticSearchServiceUrl")
+      .value.trim();
+    this.settings.environment = document
+      .getElementById("environment")
       .value.trim();
   }
 
@@ -172,7 +195,26 @@ class StackSyncSidebar {
     switch (platform) {
       case "elastic":
         return () => {
-          // Look for kubernetes.deployment.name filter
+          // First try to extract from URL (for cases like the provided example)
+          const url = window.location.href;
+
+          // Look for kubernetes.deployment.name in URL-encoded filters
+          let deploymentMatch = url.match(
+            /kubernetes\.deployment\.name[^)]*query:([^)]+)\)/i
+          );
+          if (deploymentMatch) {
+            return decodeURIComponent(deploymentMatch[1]).replace(/['"]/g, "");
+          }
+
+          // Look for match_phrase deployment name
+          deploymentMatch = url.match(
+            /match_phrase.*kubernetes\.deployment\.name:([^)]+)\)/i
+          );
+          if (deploymentMatch) {
+            return decodeURIComponent(deploymentMatch[1]).replace(/['"]/g, "");
+          }
+
+          // Look for kubernetes.deployment.name filter in the DOM
           const filters = document.querySelectorAll(
             '[data-test-subj*="filter"]'
           );
@@ -183,6 +225,22 @@ class StackSyncSidebar {
             );
             if (match) {
               return match[1];
+            }
+          }
+
+          // Look for filter pills/badges
+          const filterBadges = document.querySelectorAll(
+            '[class*="filter"], [class*="badge"]'
+          );
+          for (const badge of filterBadges) {
+            const text = badge.textContent || badge.innerText || "";
+            if (text.includes("kubernetes.deployment.name")) {
+              const match = text.match(
+                /kubernetes\.deployment\.name[:\s]*([a-zA-Z0-9\-_.]+)/i
+              );
+              if (match) {
+                return match[1];
+              }
             }
           }
 
@@ -200,12 +258,12 @@ class StackSyncSidebar {
             }
           }
 
-          // Look for any deployment name pattern in page
+          // Look for deployment name in page content
           const pageText = document.body.textContent || "";
-          const deploymentMatch = pageText.match(
+          const deploymentNameMatch = pageText.match(
             /deployment[:\s]*([a-zA-Z0-9\-_.]+)/i
           );
-          return deploymentMatch ? deploymentMatch[1] : null;
+          return deploymentNameMatch ? deploymentNameMatch[1] : null;
         };
 
       case "gitlab":
@@ -269,6 +327,45 @@ class StackSyncSidebar {
         .filter((part) => part.length > 0);
 
       switch (platform) {
+        case "elastic":
+          // For Elastic URLs, try to extract from URL parameters first
+          const fullUrl = url;
+
+          // Look for kubernetes.deployment.name in various URL formats
+          let deploymentMatch = fullUrl.match(
+            /kubernetes\.deployment\.name[^)]*query:([^)]+)\)/i
+          );
+          if (deploymentMatch) {
+            return decodeURIComponent(deploymentMatch[1]).replace(/['"]/g, "");
+          }
+
+          // Look for match_phrase deployment name
+          deploymentMatch = fullUrl.match(
+            /match_phrase.*kubernetes\.deployment\.name:([^)]+)\)/i
+          );
+          if (deploymentMatch) {
+            return decodeURIComponent(deploymentMatch[1]).replace(/['"]/g, "");
+          }
+
+          // Try URL parameters
+          const params = new URLSearchParams(urlObj.search);
+          for (const [key, value] of params) {
+            if (key.includes("deployment") || key.includes("app")) {
+              return value;
+            }
+          }
+
+          // Try to find in fragment/hash
+          if (urlObj.hash) {
+            const hashMatch = urlObj.hash.match(
+              /kubernetes\.deployment\.name[^)]*query:([^)]+)\)/i
+            );
+            if (hashMatch) {
+              return decodeURIComponent(hashMatch[1]).replace(/['"]/g, "");
+            }
+          }
+          break;
+
         case "gitlab":
           // GitLab URLs: /group/project or /user/project
           if (pathParts.length >= 2) {
@@ -281,16 +378,6 @@ class StackSyncSidebar {
           const jobIndex = pathParts.indexOf("job");
           if (jobIndex >= 0 && pathParts.length > jobIndex + 1) {
             return pathParts[jobIndex + 1];
-          }
-          break;
-
-        case "elastic":
-          // Try to find project name in URL parameters or path
-          const params = new URLSearchParams(urlObj.search);
-          for (const [key, value] of params) {
-            if (key.includes("deployment") || key.includes("app")) {
-              return value;
-            }
           }
           break;
       }
@@ -317,7 +404,7 @@ class StackSyncSidebar {
     }
   }
 
-  generateCorrelations() {
+  async generateCorrelations() {
     const correlationList = document.getElementById("correlationList");
 
     if (!this.currentProject) {
@@ -326,52 +413,202 @@ class StackSyncSidebar {
       return;
     }
 
-    const correlations = [];
-    const projectName = this.currentProject;
+    this.updateStatus("Loading correlations...", "info");
 
-    // Generate Elastic correlation
-    if (this.settings.elasticUrl && this.currentPlatform !== "elastic") {
-      const elasticUrl = this.buildElasticUrl(projectName);
+    try {
+      // Get app configuration from config service
+      const appConfig = await this.fetchAppConfig(this.currentProject);
+
+      if (!appConfig) {
+        correlationList.innerHTML =
+          '<div class="no-correlations">App not found in config service</div>';
+        this.updateStatus("App not found in config service", "warning");
+        return;
+      }
+
+      const correlations = [];
+
+      // Generate Elastic correlation using the elastic search service
+      if (
+        this.settings.elasticSearchServiceUrl &&
+        this.currentPlatform !== "elastic"
+      ) {
+        try {
+          const elasticUrl = await this.fetchElasticUrl(
+            this.currentProject,
+            appConfig.product
+          );
+          if (elasticUrl) {
+            correlations.push({
+              platform: "elastic",
+              title: "View Logs in Elastic",
+              url: elasticUrl,
+              icon: "E",
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching Elastic URL:", error);
+        }
+      }
+
+      // Generate GitLab correlation using gitURL from config
+      if (appConfig.gitURL && this.currentPlatform !== "gitlab") {
+        const gitlabUrl = this.convertGitUrlToWebUrl(appConfig.gitURL);
+        if (gitlabUrl) {
+          correlations.push({
+            platform: "gitlab",
+            title: "View in GitLab",
+            url: gitlabUrl,
+            icon: "G",
+          });
+        }
+      }
+
+      // Generate Jenkins correlation using jobId from config
+      if (
+        appConfig.jobId &&
+        this.settings.jenkinsUrl &&
+        this.currentPlatform !== "jenkins"
+      ) {
+        const jenkinsUrl = this.buildJenkinsUrlFromJobId(appConfig.jobId);
+        correlations.push({
+          platform: "jenkins",
+          title: "View in Jenkins",
+          url: jenkinsUrl,
+          icon: "J",
+        });
+      }
+
+      // Add app config info
       correlations.push({
-        platform: "elastic",
-        title: "View Logs in Elastic",
-        url: elasticUrl,
-        icon: "E",
+        platform: "config",
+        title: "View App Configuration",
+        url: `${this.settings.configServiceUrl}/app-config/config/artifact/app/${this.currentProject}`,
+        icon: "C",
+        metadata: {
+          type: appConfig.type,
+          product: appConfig.product,
+          description: appConfig.desc,
+        },
       });
+
+      this.renderCorrelations(correlations, appConfig);
+      this.updateStatus(`Found ${correlations.length} correlations`, "success");
+    } catch (error) {
+      console.error("Error generating correlations:", error);
+      correlationList.innerHTML =
+        '<div class="no-correlations">Error loading correlations</div>';
+      this.updateStatus("Error loading correlations", "error");
+    }
+  }
+
+  async fetchAppConfig(appName) {
+    if (!this.settings.configServiceUrl) {
+      throw new Error("Config service URL not configured");
     }
 
-    // Generate GitLab correlation
-    if (this.settings.gitlabUrl && this.currentPlatform !== "gitlab") {
-      const gitlabUrl = this.buildGitlabUrl(projectName);
-      correlations.push({
-        platform: "gitlab",
-        title: "View in GitLab",
-        url: gitlabUrl,
-        icon: "G",
-      });
+    try {
+      const url = `${this.settings.configServiceUrl}/app-config/config/artifact/app/${appName}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null; // App not found
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching app config:", error);
+      throw error;
+    }
+  }
+
+  async fetchElasticUrl(appName, appProduct) {
+    if (!this.settings.elasticSearchServiceUrl) {
+      return null;
     }
 
-    // Generate Jenkins correlation
-    if (this.settings.jenkinsUrl && this.currentPlatform !== "jenkins") {
-      const jenkinsUrl = this.buildJenkinsUrl(projectName);
-      correlations.push({
-        platform: "jenkins",
-        title: "View in Jenkins",
-        url: jenkinsUrl,
-        icon: "J",
-      });
-    }
+    try {
+      const url = `${this.settings.elasticSearchServiceUrl}/elastic-search/api/elastic-search/get-elastic-url?appName=${appName}&appProduct=${appProduct}&envID=${this.settings.environment}`;
+      const response = await fetch(url);
 
-    this.renderCorrelations(correlations);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const elasticUrl = await response.text();
+      return elasticUrl.trim();
+    } catch (error) {
+      console.error("Error fetching Elastic URL:", error);
+      return null;
+    }
+  }
+
+  convertGitUrlToWebUrl(gitUrl) {
+    try {
+      // Convert SSH git URL to HTTPS web URL
+      // From: git@nyssc.svc.ny.gov:DTF/FRAMEWORK/NIMBUS/nimbus-saml-service.git
+      // To: https://nyssc.svc.ny.gov/DTF/FRAMEWORK/NIMBUS/nimbus-saml-service
+
+      if (gitUrl.startsWith("git@")) {
+        const match = gitUrl.match(/git@([^:]+):(.+)\.git$/);
+        if (match) {
+          const [, host, path] = match;
+          return `https://${host}/${path}`;
+        }
+      } else if (gitUrl.startsWith("https://")) {
+        // Already a web URL, just remove .git suffix
+        return gitUrl.replace(/\.git$/, "");
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error converting git URL:", error);
+      return null;
+    }
+  }
+
+  buildJenkinsUrlFromJobId(jobId) {
+    const baseUrl = this.settings.jenkinsUrl.replace(/\/$/, "");
+    return `${baseUrl}/job/${jobId}/`;
   }
 
   buildElasticUrl(projectName) {
     const baseUrl = this.settings.elasticUrl.replace(/\/$/, "");
-    // Build Kibana discover URL with kubernetes.deployment.name filter
-    const filter = encodeURIComponent(
-      `kubernetes.deployment.name:"${projectName}"`
-    );
-    return `${baseUrl}/app/discover#/?_g=()&_a=(query:(language:kuery,query:'${filter}'))`;
+
+    // Build a more sophisticated Kibana discover URL that matches the format you showed
+    // This creates a filter for kubernetes.deployment.name with the project name
+    const filter = {
+      $state: {
+        store: "appState",
+      },
+      meta: {
+        alias: null,
+        disabled: false,
+        field: "kubernetes.deployment.name",
+        key: "kubernetes.deployment.name",
+        negate: false,
+        params: {
+          query: projectName,
+        },
+        type: "phrase",
+      },
+      query: {
+        match_phrase: {
+          "kubernetes.deployment.name": projectName,
+        },
+      },
+    };
+
+    // URL encode the filter
+    const encodedFilter = encodeURIComponent(JSON.stringify(filter));
+
+    // Build the full URL with time range (last 1 hour) and the filter
+    const discoverUrl = `${baseUrl}/app/discover#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1h,to:now))&_a=(columns:!(message),filters:!(${encodedFilter}),hideChart:!f,interval:auto,query:(language:kuery,query:''),sort:!(!('@timestamp',desc)))`;
+
+    return discoverUrl;
   }
 
   buildGitlabUrl(projectName) {
@@ -384,29 +621,68 @@ class StackSyncSidebar {
     return `${baseUrl}/job/${projectName}/`;
   }
 
-  renderCorrelations(correlations) {
+  renderCorrelations(correlations, appConfig = null) {
     const correlationList = document.getElementById("correlationList");
 
     if (correlations.length === 0) {
       correlationList.innerHTML =
-        '<div class="no-correlations">Configure URLs in settings to see correlations</div>';
+        '<div class="no-correlations">Configure services in settings to see correlations</div>';
       return;
     }
 
-    const html = correlations
-      .map(
-        (correlation) => `
-      <div class="correlation-item ${correlation.platform}" data-url="${correlation.url}">
-        <div class="correlation-icon ${correlation.platform}">
-          ${correlation.icon}
+    let html = "";
+
+    // Add app info section if we have config
+    if (appConfig) {
+      html += `
+        <div class="app-info">
+          <div class="app-info-header">
+            <span class="app-type">${appConfig.type}</span>
+            <span class="app-product">${appConfig.product}</span>
+          </div>
+          <div class="app-description">${
+            appConfig.desc || "No description"
+          }</div>
+          ${
+            appConfig.jobId
+              ? `<div class="app-job-id">Job: ${appConfig.jobId}</div>`
+              : ""
+          }
         </div>
-        <div class="correlation-details">
-          <div class="correlation-title">${correlation.title}</div>
-          <div class="correlation-url">${correlation.url}</div>
+      `;
+    }
+
+    // Add correlation items
+    html += correlations
+      .map((correlation) => {
+        const metadataHtml = correlation.metadata
+          ? `<div class="correlation-metadata">
+          ${
+            correlation.metadata.type
+              ? `<span class="meta-tag">${correlation.metadata.type}</span>`
+              : ""
+          }
+          ${
+            correlation.metadata.product
+              ? `<span class="meta-tag">${correlation.metadata.product}</span>`
+              : ""
+          }
+        </div>`
+          : "";
+
+        return `
+        <div class="correlation-item ${correlation.platform}" data-url="${correlation.url}">
+          <div class="correlation-icon ${correlation.platform}">
+            ${correlation.icon}
+          </div>
+          <div class="correlation-details">
+            <div class="correlation-title">${correlation.title}</div>
+            <div class="correlation-url">${correlation.url}</div>
+            ${metadataHtml}
+          </div>
         </div>
-      </div>
-    `
-      )
+      `;
+      })
       .join("");
 
     correlationList.innerHTML = html;

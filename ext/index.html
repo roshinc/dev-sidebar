@@ -38,22 +38,58 @@
 
       <div class="settings-panel" id="settingsPanel">
         <h3>Configuration</h3>
+
         <div class="setting-group">
-          <label for="elasticUrl">Elastic URL:</label>
+          <label for="configServiceUrl">Config Service URL:</label>
+          <input
+            type="text"
+            id="configServiceUrl"
+            placeholder="http://config-service.dev"
+          />
+          <small>Base URL for app configuration API</small>
+        </div>
+
+        <div class="setting-group">
+          <label for="elasticSearchServiceUrl"
+            >Elastic Search Service URL:</label
+          >
+          <input
+            type="text"
+            id="elasticSearchServiceUrl"
+            placeholder="https://nimbus-elastic-search.dev"
+          />
+          <small>Service that provides dynamic Elastic URLs</small>
+        </div>
+
+        <div class="setting-group">
+          <label for="environment">Environment:</label>
+          <select id="environment">
+            <option value="DEV">DEV</option>
+            <option value="TEST">TEST</option>
+            <option value="PROD">PROD</option>
+          </select>
+        </div>
+
+        <div class="setting-group">
+          <label for="elasticUrl">Elastic URL (Fallback):</label>
           <input
             type="text"
             id="elasticUrl"
             placeholder="https://your-elastic.com"
           />
+          <small>Used when elastic search service is unavailable</small>
         </div>
+
         <div class="setting-group">
-          <label for="gitlabUrl">GitLab URL:</label>
+          <label for="gitlabUrl">GitLab URL (Fallback):</label>
           <input
             type="text"
             id="gitlabUrl"
             placeholder="https://gitlab.com/your-group"
           />
+          <small>Used when git URL conversion fails</small>
         </div>
+
         <div class="setting-group">
           <label for="jenkinsUrl">Jenkins URL:</label>
           <input
@@ -62,15 +98,17 @@
             placeholder="https://your-jenkins.com"
           />
         </div>
+
         <div class="setting-group">
-          <label for="namingPattern">Naming Pattern:</label>
+          <label for="namingPattern">Naming Pattern (Legacy):</label>
           <input
             type="text"
             id="namingPattern"
             placeholder="e.g., my-app-{env}"
           />
-          <small>Use {env} for environment placeholders</small>
+          <small>Use {env} for environment placeholders (fallback only)</small>
         </div>
+
         <div class="setting-actions">
           <button id="saveSettings">Save</button>
           <button id="cancelSettings">Cancel</button>

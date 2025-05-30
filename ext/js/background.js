@@ -11,6 +11,9 @@ chrome.runtime.onInstalled.addListener(async function () {
       "gitlabUrl",
       "jenkinsUrl",
       "namingPattern",
+      "configServiceUrl",
+      "elasticSearchServiceUrl",
+      "environment",
     ]);
 
     // Set defaults only if not already configured
@@ -19,6 +22,9 @@ chrome.runtime.onInstalled.addListener(async function () {
     if (!result.gitlabUrl) defaults.gitlabUrl = "";
     if (!result.jenkinsUrl) defaults.jenkinsUrl = "";
     if (!result.namingPattern) defaults.namingPattern = "";
+    if (!result.configServiceUrl) defaults.configServiceUrl = "";
+    if (!result.elasticSearchServiceUrl) defaults.elasticSearchServiceUrl = "";
+    if (!result.environment) defaults.environment = "DEV";
 
     if (Object.keys(defaults).length > 0) {
       await chrome.storage.sync.set(defaults);

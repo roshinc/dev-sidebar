@@ -289,12 +289,83 @@ body {
   background: #5a6268;
 }
 
-.pulse {
-  animation: pulse 2s infinite;
+.correlation-item.config {
+  border-left-color: #6f42c1;
 }
 
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+.correlation-icon.config {
+  background: #6f42c1;
+}
+
+.app-info {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.app-info-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.app-type, .app-product {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.app-product {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.app-description {
+  font-size: 12px;
+  color: #6c757d;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.app-job-id {
+  font-size: 11px;
+  color: #495057;
+  font-family: 'Courier New', monospace;
+}
+
+.correlation-metadata {
+  margin-top: 4px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.meta-tag {
+  background: #e9ecef;
+  color: #495057;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.setting-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+}
+
+.setting-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
 }
