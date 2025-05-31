@@ -99,6 +99,42 @@ body {
   color: #2c3e50;
 }
 
+.env-section {
+  margin-bottom: 20px;
+}
+
+.env-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.env-badge {
+  background: #6f42c1;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
+.env-badge.dev {
+  background: #28a745;
+}
+
+.env-badge.test {
+  background: #ffc107;
+  color: #333;
+}
+
+.env-badge.prod {
+  background: #dc3545;
+}
+
 .correlation-item {
   display: flex;
   align-items: center;
@@ -256,6 +292,79 @@ body {
   font-size: 12px;
 }
 
+.environments-section {
+  margin: 24px 0;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.environments-section h4 {
+  margin: 0 0 16px 0;
+  color: #2c3e50;
+}
+
+.env-config {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.env-config-header {
+  display: flex;
+  justify-content: between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.env-name {
+  font-weight: 600;
+  color: #2c3e50;
+  flex: 1;
+}
+
+.remove-env-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.remove-env-btn:hover {
+  background: #c82333;
+}
+
+.add-env-section {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.add-env-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.add-env-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-env-btn:hover {
+  background: #218838;
+}
+
 .setting-actions {
   display: flex;
   gap: 8px;
@@ -287,14 +396,6 @@ body {
 
 #cancelSettings:hover {
   background: #5a6268;
-}
-
-.correlation-item.config {
-  border-left-color: #6f42c1;
-}
-
-.correlation-icon.config {
-  background: #6f42c1;
 }
 
 .app-info {
@@ -331,12 +432,6 @@ body {
   color: #6c757d;
   margin-bottom: 4px;
   line-height: 1.4;
-}
-
-.app-job-id {
-  font-size: 11px;
-  color: #495057;
-  font-family: 'Courier New', monospace;
 }
 
 .correlation-metadata {
