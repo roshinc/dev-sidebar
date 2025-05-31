@@ -11,6 +11,7 @@ class StackSyncSidebar {
     };
     this.currentProject = null;
     this.currentPlatform = null;
+    this.environments = ["DEV", "TEST", "PROD"]; // All supported environments
 
     this.init();
   }
@@ -580,30 +581,35 @@ class StackSyncSidebar {
 
       const correlations = [];
 
-      // Generate Elastic correlation using the elastic search service
+      // Generate Elastic correlations for ALL environments
       if (
         this.settings.elasticSearchServiceUrl &&
         this.currentPlatform !== "elastic"
       ) {
-        try {
-          const elasticUrl = await this.fetchElasticUrl(
-            this.currentProject,
-            appConfig.product
-          );
-          if (elasticUrl) {
-            correlations.push({
-              platform: "elastic",
-              title: "View Logs in Elastic",
-              url: elasticUrl,
-              icon: "E",
-            });
+        for (const env of this.environments) {
+          try {
+            const elasticUrl = await this.fetchElasticUrl(
+              this.currentProject,
+              appConfig.product,
+              env
+            );
+            if (elasticUrl) {
+              correlations.push({
+                platform: "elastic",
+                title: `View ${env} Logs in Elastic`,
+                url: elasticUrl,
+                icon: "E",
+                environment: env,
+                isCurrent: env === this.settings.environment,
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching ${env} Elastic URL:`, error);
           }
-        } catch (error) {
-          console.error("Error fetching Elastic URL:", error);
         }
       }
 
-      // Generate GitLab correlation using gitURL from config
+      // Generate GitLab correlation (environment-independent)
       if (appConfig.gitURL && this.currentPlatform !== "gitlab") {
         const gitlabUrl = this.convertGitUrlToWebUrl(appConfig.gitURL);
         if (gitlabUrl) {
@@ -616,19 +622,22 @@ class StackSyncSidebar {
         }
       }
 
-      // Generate Jenkins correlation using jobId from config
-      if (
-        appConfig.jobId &&
-        this.settings.jenkinsUrl &&
-        this.currentPlatform !== "jenkins"
-      ) {
-        const jenkinsUrl = this.buildJenkinsUrlFromJobId(appConfig.jobId);
-        correlations.push({
-          platform: "jenkins",
-          title: "View in Jenkins",
-          url: jenkinsUrl,
-          icon: "J",
-        });
+      // Generate Jenkins correlations for ALL environments
+      if (this.settings.jenkinsUrl && this.currentPlatform !== "jenkins") {
+        for (const env of this.environments) {
+          const jenkinsJobId = this.getEnvironmentJobId(appConfig.jobId, env);
+          if (jenkinsJobId) {
+            const jenkinsUrl = this.buildJenkinsUrlFromJobId(jenkinsJobId);
+            correlations.push({
+              platform: "jenkins",
+              title: `View ${env} Job in Jenkins`,
+              url: jenkinsUrl,
+              icon: "J",
+              environment: env,
+              isCurrent: env === this.settings.environment,
+            });
+          }
+        }
       }
 
       // Add app config info
@@ -677,13 +686,13 @@ class StackSyncSidebar {
     }
   }
 
-  async fetchElasticUrl(appName, appProduct) {
+  async fetchElasticUrl(appName, appProduct, environment) {
     if (!this.settings.elasticSearchServiceUrl) {
       return null;
     }
 
     try {
-      const url = `${this.settings.elasticSearchServiceUrl}?appName=${appName}&appProduct=${appProduct}&envID=${this.settings.environment}`;
+      const url = `${this.settings.elasticSearchServiceUrl}?appName=${appName}&appProduct=${appProduct}&envID=${environment}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -693,9 +702,32 @@ class StackSyncSidebar {
       const elasticUrl = await response.text();
       return elasticUrl.trim();
     } catch (error) {
-      console.error("Error fetching Elastic URL:", error);
+      console.error(`Error fetching ${environment} Elastic URL:`, error);
       return null;
     }
+  }
+
+  getEnvironmentJobId(baseJobId, environment) {
+    if (!baseJobId) return null;
+
+    // If the jobId already contains environment info, replace it
+    // Example: "fwrk-dev-nimbus-codegen-service" -> "fwrk-prod-nimbus-codegen-service"
+    const envPattern = /-(dev|test|prod)-/i;
+    if (envPattern.test(baseJobId)) {
+      return baseJobId.replace(envPattern, `-${environment.toLowerCase()}-`);
+    }
+
+    // If no environment in jobId, try to insert it after the product prefix
+    // Example: "fwrk-nimbus-codegen-service" -> "fwrk-dev-nimbus-codegen-service"
+    const parts = baseJobId.split("-");
+    if (parts.length >= 2) {
+      return `${parts[0]}-${environment.toLowerCase()}-${parts
+        .slice(1)
+        .join("-")}`;
+    }
+
+    // Fallback: append environment
+    return `${baseJobId}-${environment.toLowerCase()}`;
   }
 
   buildJenkinsUrlFromJobId(jobId) {
@@ -727,89 +759,6 @@ class StackSyncSidebar {
     }
   }
 
-  // Helper method to extract app name from Jenkins config.xml
-  async fetchJenkinsAppName(jobName, baseUrl) {
-    try {
-      const configUrl = `${baseUrl}/job/${jobName}/config.xml`;
-      const response = await fetch(configUrl);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const xmlText = await response.text();
-
-      // Extract app name from the pipeline script
-      let appNameMatch = xmlText.match(/def\s+_appName\s*=\s*['"](.*?)['"]/);
-      if (appNameMatch) {
-        return appNameMatch[1];
-      }
-
-      // Alternative pattern: appName='name' or appName="name"
-      appNameMatch = xmlText.match(/appName\s*=\s*['"](.*?)['"]/);
-      if (appNameMatch) {
-        return appNameMatch[1];
-      }
-
-      // Another pattern: appName=_appName where _appName is defined elsewhere
-      const varMatch = xmlText.match(/def\s+_appName\s*=\s*['"](.*?)['"]/);
-      if (varMatch) {
-        return varMatch[1];
-      }
-
-      return null;
-    } catch (error) {
-      console.error("Error fetching Jenkins config.xml:", error);
-      return null;
-    }
-  }
-
-  buildElasticUrl(projectName) {
-    const baseUrl = this.settings.elasticUrl.replace(/\/$/, "");
-
-    // Build a more sophisticated Kibana discover URL that matches the format you showed
-    // This creates a filter for kubernetes.deployment.name with the project name
-    const filter = {
-      $state: {
-        store: "appState",
-      },
-      meta: {
-        alias: null,
-        disabled: false,
-        field: "kubernetes.deployment.name",
-        key: "kubernetes.deployment.name",
-        negate: false,
-        params: {
-          query: projectName,
-        },
-        type: "phrase",
-      },
-      query: {
-        match_phrase: {
-          "kubernetes.deployment.name": projectName,
-        },
-      },
-    };
-
-    // URL encode the filter
-    const encodedFilter = encodeURIComponent(JSON.stringify(filter));
-
-    // Build the full URL with time range (last 1 hour) and the filter
-    const discoverUrl = `${baseUrl}/app/discover#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-1h,to:now))&_a=(columns:!(message),filters:!(${encodedFilter}),hideChart:!f,interval:auto,query:(language:kuery,query:''),sort:!(!('@timestamp',desc)))`;
-
-    return discoverUrl;
-  }
-
-  buildGitlabUrl(projectName) {
-    const baseUrl = this.settings.gitlabUrl.replace(/\/$/, "");
-    return `${baseUrl}/${projectName}`;
-  }
-
-  buildJenkinsUrl(projectName) {
-    const baseUrl = this.settings.jenkinsUrl.replace(/\/$/, "");
-    return `${baseUrl}/job/${projectName}/`;
-  }
-
   renderCorrelations(correlations, appConfig = null) {
     const correlationList = document.getElementById("correlationList");
 
@@ -834,18 +783,40 @@ class StackSyncSidebar {
           }</div>
           ${
             appConfig.jobId
-              ? `<div class="app-job-id">Job: ${appConfig.jobId}</div>`
+              ? `<div class="app-job-id">Base Job: ${appConfig.jobId}</div>`
               : ""
           }
         </div>
       `;
     }
 
-    // Add correlation items
-    html += correlations
-      .map((correlation) => {
-        const metadataHtml = correlation.metadata
-          ? `<div class="correlation-metadata">
+    // Group correlations by platform for better organization
+    const groupedCorrelations = this.groupCorrelationsByPlatform(correlations);
+
+    // Render each platform group
+    for (const [platform, items] of Object.entries(groupedCorrelations)) {
+      if (platform === "config") {
+        // Render config item separately at the end
+        continue;
+      }
+
+      html += `<div class="platform-group">`;
+
+      if (items.length > 1) {
+        html += `<div class="platform-group-header">${this.getPlatformDisplayName(
+          platform
+        )}</div>`;
+      }
+
+      html += items
+        .map((correlation) => {
+          const envClass = correlation.environment
+            ? `env-${correlation.environment.toLowerCase()}`
+            : "";
+          const currentClass = correlation.isCurrent ? "current-env" : "";
+
+          const metadataHtml = correlation.metadata
+            ? `<div class="correlation-metadata">
           ${
             correlation.metadata.type
               ? `<span class="meta-tag">${correlation.metadata.type}</span>`
@@ -857,9 +828,53 @@ class StackSyncSidebar {
               : ""
           }
         </div>`
-          : "";
+            : "";
 
-        return `
+          const envBadgeHtml = correlation.environment
+            ? `<span class="env-badge ${envClass} ${currentClass}">${correlation.environment}</span>`
+            : "";
+
+          return `
+        <div class="correlation-item ${correlation.platform} ${envClass} ${currentClass}" data-url="${correlation.url}">
+          <div class="correlation-icon ${correlation.platform}">
+            ${correlation.icon}
+          </div>
+          <div class="correlation-details">
+            <div class="correlation-title-row">
+              <div class="correlation-title">${correlation.title}</div>
+              ${envBadgeHtml}
+            </div>
+            <div class="correlation-url">${correlation.url}</div>
+            ${metadataHtml}
+          </div>
+        </div>
+      `;
+        })
+        .join("");
+
+      html += `</div>`;
+    }
+
+    // Add config correlation at the end
+    if (groupedCorrelations.config) {
+      html += groupedCorrelations.config
+        .map((correlation) => {
+          const metadataHtml = correlation.metadata
+            ? `<div class="correlation-metadata">
+          ${
+            correlation.metadata.type
+              ? `<span class="meta-tag">${correlation.metadata.type}</span>`
+              : ""
+          }
+          ${
+            correlation.metadata.product
+              ? `<span class="meta-tag">${correlation.metadata.product}</span>`
+              : ""
+          }
+        </div>`
+            : "";
+
+          return `
         <div class="correlation-item ${correlation.platform}" data-url="${correlation.url}">
           <div class="correlation-icon ${correlation.platform}">
             ${correlation.icon}
@@ -871,10 +886,47 @@ class StackSyncSidebar {
           </div>
         </div>
       `;
-      })
-      .join("");
+        })
+        .join("");
+    }
 
     correlationList.innerHTML = html;
+  }
+
+  groupCorrelationsByPlatform(correlations) {
+    const grouped = {};
+
+    for (const correlation of correlations) {
+      const platform = correlation.platform;
+      if (!grouped[platform]) {
+        grouped[platform] = [];
+      }
+      grouped[platform].push(correlation);
+    }
+
+    // Sort environments within each platform (DEV, TEST, PROD)
+    for (const platform in grouped) {
+      if (platform !== "gitlab" && platform !== "config") {
+        grouped[platform].sort((a, b) => {
+          const envOrder = { DEV: 0, TEST: 1, PROD: 2 };
+          return (
+            (envOrder[a.environment] || 999) - (envOrder[b.environment] || 999)
+          );
+        });
+      }
+    }
+
+    return grouped;
+  }
+
+  getPlatformDisplayName(platform) {
+    const displayNames = {
+      elastic: "Elastic/Kibana",
+      jenkins: "Jenkins",
+      gitlab: "GitLab",
+      config: "Configuration",
+    };
+    return displayNames[platform] || platform;
   }
 
   updateStatus(message, type = "info") {
