@@ -682,7 +682,7 @@ class StackSyncSidebar {
     }
 
     try {
-      const url = `${this.settings.configServiceUrl}/app-config/config/artifact/app/${appName}`;
+      const url = `${this.settings.configServiceUrl}/${appName}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -705,7 +705,7 @@ class StackSyncSidebar {
     }
 
     try {
-      const url = `${this.settings.elasticSearchServiceUrl}/elastic-search/api/elastic-search/get-elastic-url?appName=${appName}&appProduct=${appProduct}&envID=${environment}`;
+      const url = `${this.settings.elasticSearchServiceUrl}?appName=${appName}&appProduct=${appProduct}&envID=${environment}`;
       const response = await fetch(url);
 
       if (!response.ok) {
